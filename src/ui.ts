@@ -152,7 +152,7 @@ export function renderTabs(container: HTMLElement): void {
     btn.className = `tab-btn ${state.activeTab === key ? 'active' : ''}`;
     btn.dataset.tab = key;
     const entries = state.result![key];
-    btn.innerHTML = `${icon} ${label} ${tabBadge(entries)}`;
+    btn.innerHTML = `${icon} ${label} <span class="badge badge-count">${entries.length}</span>${tabBadge(entries)}`;
     btn.addEventListener('click', () => {
       state.activeTab = key;
       state.filter = 'all';
