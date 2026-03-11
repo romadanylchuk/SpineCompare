@@ -1,0 +1,14 @@
+{
+  "name": "spine-compare",
+  "version": "1.0.0",
+  "description": "Spine Skeleton Comparator — animations, skins, events diff viewer",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11"
+  }
+}
