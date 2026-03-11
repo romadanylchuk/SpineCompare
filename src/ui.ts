@@ -11,13 +11,6 @@ const STATUS_CLASS: Record<DiffStatus, string> = {
   'different': 'tag-different',
 };
 
-const STATUS_LABEL: Record<DiffStatus, string> = {
-  'only-a': 'Only A',
-  'only-b': 'Only B',
-  'same': 'Same',
-  'different': 'Different',
-};
-
 const STATUS_ICON: Record<DiffStatus, string> = {
   'only-a': '◀',
   'only-b': '▶',
