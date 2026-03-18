@@ -271,6 +271,45 @@ export function showResult(
   renderTabs(container);
 }
 
+// ─── Mini stats bar ───────────────────────────────────────────────────────────
+
+function buildMiniStatsBar(result: CompareResult): HTMLElement {
+  const bar = document.createElement('div');
+  bar.className = 'mini-stats-bar';
+
+  TABS.forEach(({ key, label, icon }) => {
+    const entries = result[key];
+    const issues = entries.filter((e) => e.status !== 'same').length;
+
+    const item = document.createElement('span');
+    item.className = 'mini-stat';
+
+    const iconEl = document.createElement('span');
+    iconEl.className = 'mini-stat-icon';
+    iconEl.textContent = icon;
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'mini-stat-label';
+    labelEl.textContent = label;
+
+    const countBadge = document.createElement('span');
+    countBadge.className = 'badge badge-count';
+    countBadge.textContent = String(entries.length);
+
+    const statusBadge = document.createElement('span');
+    statusBadge.className = `badge ${issues === 0 ? 'badge-ok' : 'badge-issues'}`;
+    statusBadge.textContent = issues === 0 ? '✓' : String(issues);
+
+    item.appendChild(iconEl);
+    item.appendChild(labelEl);
+    item.appendChild(countBadge);
+    item.appendChild(statusBadge);
+    bar.appendChild(item);
+  });
+
+  return bar;
+}
+
 // ─── Folder result ────────────────────────────────────────────────────────────
 
 function buildFolderEntryRow(
@@ -278,6 +317,7 @@ function buildFolderEntryRow(
   nameA: string,
   nameB: string,
   onCompare: (fa: FolderFile, fb: FolderFile, nA: string, nB: string) => void,
+  onGetStats?: (fa: FolderFile, fb: FolderFile) => Promise<CompareResult>,
 ): HTMLElement {
   const row = document.createElement('div');
 
@@ -314,6 +354,26 @@ function buildFolderEntryRow(
     row.appendChild(cellA);
     row.appendChild(cellMiddle);
     row.appendChild(cellB);
+
+    // Mini stats placeholder — populated async
+    if (onGetStats) {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'mini-stats-bar mini-stats-loading';
+      placeholder.textContent = 'Loading…';
+      row.appendChild(placeholder);
+
+      onGetStats(fa, fb).then((result) => {
+        const bar = buildMiniStatsBar(result);
+        // Colour the row border if there are any diffs
+        const hasDiffs = (Object.values(result) as Array<typeof result[keyof typeof result]>)
+          .some((arr) => arr.some((e) => e.status !== 'same'));
+        if (hasDiffs) row.classList.replace('status-same', 'status-different');
+        row.replaceChild(bar, placeholder);
+      }).catch(() => {
+        placeholder.textContent = 'Could not load';
+        placeholder.classList.add('mini-stats-error');
+      });
+    }
   } else if (entry.fileA) {
     row.className = 'entry-row folder-pair-row status-only-a';
 
@@ -373,6 +433,7 @@ export function showFolderResult(
   nameA: string,
   nameB: string,
   onCompare: (fa: FolderFile, fb: FolderFile, nA: string, nB: string) => void,
+  onGetStats?: (fa: FolderFile, fb: FolderFile) => Promise<CompareResult>,
 ): void {
   container.innerHTML = '';
 
@@ -414,7 +475,7 @@ export function showFolderResult(
     header.className = 'folder-group-header';
     header.textContent = label;
     list.appendChild(header);
-    groupEntries.forEach((e) => list.appendChild(buildFolderEntryRow(e, nameA, nameB, onCompare)));
+    groupEntries.forEach((e) => list.appendChild(buildFolderEntryRow(e, nameA, nameB, onCompare, onGetStats)));
   }
 
   appendGroup(matched, `Matched (${matched.length})`);

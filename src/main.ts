@@ -434,12 +434,18 @@ function triggerFolderCompare(): void {
     app.querySelector('.compare-section')!.classList.remove('hidden');
   };
 
+  const onGetStats = async (fa: FolderFile, fb: FolderFile) => {
+    const [a, b] = await Promise.all([loadFile(fa.file), loadFile(fb.file)]);
+    return compare(a.skeleton, b.skeleton);
+  };
+
   showFolderResult(
     document.getElementById('folder-entries')!,
     entries,
     folderNameA,
     folderNameB,
     onCompare,
+    onGetStats,
   );
 }
 

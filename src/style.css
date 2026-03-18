@@ -454,6 +454,40 @@ h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.5px; color: var(--t
 }
 .folder-compare-btn:hover { opacity: .85; transform: scale(1.03); }
 
+/* ─── Mini stats bar (inside matched folder rows) ────────────────────────────── */
+.mini-stats-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 6px 12px 8px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.mini-stats-loading {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-style: italic;
+}
+
+.mini-stats-error {
+  color: #f87171;
+  font-size: 0.78rem;
+}
+
+.mini-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.mini-stat-icon { font-size: 0.9rem; }
+.mini-stat-label { font-weight: 500; color: var(--text); }
+
 /* ─── Responsive ─────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .upload-grid { grid-template-columns: 1fr; }
