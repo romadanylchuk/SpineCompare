@@ -2,6 +2,7 @@ import type {
   SpineSkeleton,
   SpineAnimation,
   SpineEvent,
+  SpinePhysicsConstraint,
   DiffEntry,
   DiffStatus,
   CompareResult,
@@ -66,6 +67,7 @@ function animSummary(anim: SpineAnimation): string {
   if (anim.ik) tracks.push(`ik:[${Object.keys(anim.ik).sort().join(',')}]`);
   if (anim.transform) tracks.push(`transform:[${Object.keys(anim.transform).sort().join(',')}]`);
   if (anim.path) tracks.push(`path:[${Object.keys(anim.path).sort().join(',')}]`);
+  if (anim.physics) tracks.push(`physics:[${Object.keys(anim.physics).sort().join(',')}]`);
   if (anim.deform) tracks.push(`deform:[${Object.keys(anim.deform).sort().join(',')}]`);
   if (anim.events) tracks.push(`events:${anim.events.length}`);
   if (anim.drawOrder) tracks.push(`drawOrder:${anim.drawOrder.length}`);
@@ -105,6 +107,17 @@ function eventDetail(ev: SpineEvent): string {
   if (ev.string !== undefined) parts.push(`string="${ev.string}"`);
   if (ev.audio !== undefined) parts.push(`audio="${ev.audio}"`);
   return parts.join(', ') || '(empty)';
+}
+
+// ─── Physics constraint detail ────────────────────────────────────────────────
+
+function physicsDetail(constraint: SpinePhysicsConstraint): string {
+  const parts: string[] = [`bone:${constraint.bone}`];
+  const numeric = ['step', 'inertia', 'strength', 'damping', 'massInverse', 'wind', 'gravity', 'mix'];
+  for (const key of numeric) {
+    if (constraint[key] !== undefined) parts.push(`${key}:${constraint[key]}`);
+  }
+  return parts.join(' ');
 }
 
 // ─── Main compare ─────────────────────────────────────────────────────────────
@@ -164,7 +177,19 @@ export function compare(a: SpineSkeleton, b: SpineSkeleton): CompareResult {
     (k) => slotMapB[k] ?? '?',
   );
 
-  return { animations, skins, events, bones, slots };
+  // Physics constraints (Spine 4.1+)
+  const physicsA = a.physics ?? [];
+  const physicsB = b.physics ?? [];
+  const physicsMapA = Object.fromEntries(physicsA.map((p) => [p.name, p]));
+  const physicsMapB = Object.fromEntries(physicsB.map((p) => [p.name, p]));
+  const physics = diffSets(
+    physicsA.map((p) => p.name),
+    physicsB.map((p) => p.name),
+    (k) => physicsDetail(physicsMapA[k] ?? { name: k, bone: '?' }),
+    (k) => physicsDetail(physicsMapB[k] ?? { name: k, bone: '?' }),
+  );
+
+  return { animations, skins, events, bones, slots, physics };
 }
 
 // ─── Stats ────────────────────────────────────────────────────────────────────

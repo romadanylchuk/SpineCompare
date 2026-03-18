@@ -62,8 +62,17 @@ function loadFile(file: File): Promise<LoadedFile> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
+      let text = reader.result as string;
+      // Strip UTF-8 BOM if present (some Spine exports include it)
+      if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+      // Detect binary .skel content (non-printable bytes near the start)
+      const isBinary = /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(text.slice(0, 8));
+      if (isBinary) {
+        reject(new Error(`Binary .skel files are not supported. Export as JSON from the Spine editor.`));
+        return;
+      }
       try {
-        const skeleton = JSON.parse(reader.result as string) as SpineSkeleton;
+        const skeleton = JSON.parse(text) as SpineSkeleton;
         resolve({ name: file.name, skeleton });
       } catch {
         reject(new Error(`"${file.name}" is not valid JSON.`));
@@ -89,10 +98,17 @@ function updateCompareButton(): void {
   }
 }
 
-function setDropSuccess(zone: HTMLElement, label: string, fileName: string): void {
+function setDropSuccess(zone: HTMLElement, label: string, fileName: string, version?: string): void {
   zone.classList.add('loaded');
   zone.querySelector<HTMLElement>('.drop-icon')!.textContent = '✅';
-  zone.querySelector<HTMLElement>('.file-name')!.textContent = fileName;
+  const fileNameEl = zone.querySelector<HTMLElement>('.file-name')!;
+  fileNameEl.textContent = fileName;
+  if (version) {
+    const badge = document.createElement('span');
+    badge.className = 'version-badge';
+    badge.textContent = `Spine ${version}`;
+    fileNameEl.appendChild(badge);
+  }
   const nameEl = document.getElementById(label)!;
   nameEl.textContent = fileName;
 }
@@ -143,9 +159,15 @@ async function handleFile(
   nameLabelId: string,
   onLoaded: (f: LoadedFile) => void,
 ): Promise<void> {
+  const ext = file.name.split('.').pop()?.toLowerCase();
+  if (ext !== 'json' && ext !== 'skel') {
+    setDropError(zone, `".${ext}" is not supported — drop a .json skeleton file.`);
+    return;
+  }
   try {
     const loaded = await loadFile(file);
-    setDropSuccess(zone, nameLabelId, file.name);
+    const version = loaded.skeleton.skeleton?.spine;
+    setDropSuccess(zone, nameLabelId, file.name, version);
     onLoaded(loaded);
     updateCompareButton();
   } catch (err) {
@@ -168,7 +190,9 @@ document.getElementById('compare-btn')!.addEventListener('click', () => {
   if (!fileA || !fileB) return;
   const result = compare(fileA.skeleton, fileB.skeleton);
   const title = document.getElementById('compare-title')!;
-  title.innerHTML = `<span class="label-a">${escHtml(fileA.name)}</span> vs <span class="label-b">${escHtml(fileB.name)}</span>`;
+  const verA = fileA.skeleton.skeleton?.spine ? ` <span class="version-badge">${escHtml(fileA.skeleton.skeleton.spine)}</span>` : '';
+  const verB = fileB.skeleton.skeleton?.spine ? ` <span class="version-badge">${escHtml(fileB.skeleton.skeleton.spine)}</span>` : '';
+  title.innerHTML = `<span class="label-a">${escHtml(fileA.name)}</span>${verA} vs <span class="label-b">${escHtml(fileB.name)}</span>${verB}`;
   showResult(app, result, fileA.name, fileB.name);
 });
 

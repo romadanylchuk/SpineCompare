@@ -99,7 +99,8 @@ h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.5px; color: var(--t
 .label-a { color: var(--a); }
 .label-b { color: var(--b); }
 .drop-hint { color: var(--text-muted); font-size: 0.82rem; }
-.file-name { color: var(--text-muted); font-size: 0.8rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-name { color: var(--text-muted); font-size: 0.8rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; }
+.version-badge { display: inline-block; background: #1e2e1e; color: #7ec87e; border: 1px solid #3d6b3d; border-radius: 4px; padding: 1px 6px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
 
 .vs-divider {
   text-align: center;

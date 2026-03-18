@@ -34,12 +34,19 @@ export interface SpineAnimation {
   drawOrder?: unknown[];
 }
 
+export interface SpinePhysicsConstraint {
+  name: string;
+  bone: string;
+  [k: string]: unknown;
+}
+
 export interface SpineSkeleton {
   skeleton?: {
     hash?: string;
     spine?: string;
     width?: number;
     height?: number;
+    fps?: number;
     images?: string;
     audio?: string;
   };
@@ -51,7 +58,7 @@ export interface SpineSkeleton {
   ik?: unknown[];
   transform?: unknown[];
   path?: unknown[];
-  physics?: unknown[];
+  physics?: SpinePhysicsConstraint[];
 }
 
 // ─── Diff types ───────────────────────────────────────────────────────────────
@@ -71,6 +78,7 @@ export interface CompareResult {
   events: DiffEntry[];
   bones: DiffEntry[];
   slots: DiffEntry[];
+  physics: DiffEntry[];
 }
 
 export interface LoadedFile {

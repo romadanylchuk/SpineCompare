@@ -20,13 +20,14 @@ const STATUS_ICON: Record<DiffStatus, string> = {
 
 // ─── Tab definitions ─────────────────────────────────────────────────────────
 
-type TabKey = 'animations' | 'skins' | 'events' | 'bones' | 'slots';
+type TabKey = 'animations' | 'skins' | 'events' | 'bones' | 'slots' | 'physics';
 const TABS: { key: TabKey; label: string; icon: string }[] = [
   { key: 'animations', label: 'Animations', icon: '🎬' },
   { key: 'skins', label: 'Skins', icon: '🎨' },
   { key: 'events', label: 'Events', icon: '⚡' },
   { key: 'bones', label: 'Bones', icon: '🦴' },
   { key: 'slots', label: 'Slots', icon: '📌' },
+  { key: 'physics', label: 'Physics', icon: '🔩' },
 ];
 
 // ─── Filter state ─────────────────────────────────────────────────────────────
