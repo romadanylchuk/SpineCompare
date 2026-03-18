@@ -85,3 +85,14 @@ export interface LoadedFile {
   name: string;
   skeleton: SpineSkeleton;
 }
+
+export interface FolderFile {
+  name: string;  // relative path from folder root, e.g. "skins/hero.json"
+  file: File;    // raw File object, deferred parsing
+}
+
+export interface FolderEntry {
+  name: string;
+  fileA: FolderFile | null;
+  fileB: FolderFile | null;
+}

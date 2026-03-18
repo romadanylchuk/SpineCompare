@@ -1,4 +1,4 @@
-import type { DiffEntry, DiffStatus, CompareResult } from './types';
+import type { DiffEntry, DiffStatus, CompareResult, FolderEntry, FolderFile } from './types';
 import type { TabStats } from './comparator';
 import { getStats } from './comparator';
 
@@ -269,4 +269,157 @@ export function showResult(
   container.querySelector('.compare-section')!.classList.remove('hidden');
 
   renderTabs(container);
+}
+
+// ─── Folder result ────────────────────────────────────────────────────────────
+
+function buildFolderEntryRow(
+  entry: FolderEntry,
+  nameA: string,
+  nameB: string,
+  onCompare: (fa: FolderFile, fb: FolderFile, nA: string, nB: string) => void,
+): HTMLElement {
+  const row = document.createElement('div');
+
+  if (entry.fileA && entry.fileB) {
+    row.className = 'entry-row folder-pair-row status-same';
+
+    const cellA = document.createElement('div');
+    cellA.className = 'col-cell col-a-cell';
+    const nameElA = document.createElement('span');
+    nameElA.className = 'entry-name';
+    nameElA.textContent = entry.name;
+    cellA.appendChild(nameElA);
+
+    const cellMiddle = document.createElement('div');
+    cellMiddle.className = 'col-status folder-compare-col';
+    const btn = document.createElement('button');
+    btn.className = 'folder-compare-btn';
+    btn.textContent = 'Compare ▶';
+    const fa = entry.fileA;
+    const fb = entry.fileB;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onCompare(fa, fb, `${nameA} / ${entry.name}`, `${nameB} / ${entry.name}`);
+    });
+    cellMiddle.appendChild(btn);
+
+    const cellB = document.createElement('div');
+    cellB.className = 'col-cell col-b-cell';
+    const nameElB = document.createElement('span');
+    nameElB.className = 'entry-name';
+    nameElB.textContent = entry.name;
+    cellB.appendChild(nameElB);
+
+    row.appendChild(cellA);
+    row.appendChild(cellMiddle);
+    row.appendChild(cellB);
+  } else if (entry.fileA) {
+    row.className = 'entry-row folder-pair-row status-only-a';
+
+    const cellA = document.createElement('div');
+    cellA.className = 'col-cell col-a-cell';
+    const nameEl = document.createElement('span');
+    nameEl.className = 'entry-name';
+    nameEl.textContent = entry.name;
+    cellA.appendChild(nameEl);
+
+    const cellMiddle = document.createElement('div');
+    cellMiddle.className = 'col-status';
+    const tag = document.createElement('span');
+    tag.className = 'status-tag tag-only-a';
+    tag.innerHTML = `<span class="status-icon">◀</span>`;
+    cellMiddle.appendChild(tag);
+
+    const cellB = document.createElement('div');
+    cellB.className = 'col-cell col-b-cell col-empty';
+    cellB.innerHTML = `<span class="col-missing">—</span>`;
+
+    row.appendChild(cellA);
+    row.appendChild(cellMiddle);
+    row.appendChild(cellB);
+  } else {
+    row.className = 'entry-row folder-pair-row status-only-b';
+
+    const cellA = document.createElement('div');
+    cellA.className = 'col-cell col-a-cell col-empty';
+    cellA.innerHTML = `<span class="col-missing">—</span>`;
+
+    const cellMiddle = document.createElement('div');
+    cellMiddle.className = 'col-status';
+    const tag = document.createElement('span');
+    tag.className = 'status-tag tag-only-b';
+    tag.innerHTML = `<span class="status-icon">▶</span>`;
+    cellMiddle.appendChild(tag);
+
+    const cellB = document.createElement('div');
+    cellB.className = 'col-cell col-b-cell';
+    const nameEl = document.createElement('span');
+    nameEl.className = 'entry-name';
+    nameEl.textContent = entry.name;
+    cellB.appendChild(nameEl);
+
+    row.appendChild(cellA);
+    row.appendChild(cellMiddle);
+    row.appendChild(cellB);
+  }
+
+  return row;
+}
+
+export function showFolderResult(
+  container: HTMLElement,
+  entries: FolderEntry[],
+  nameA: string,
+  nameB: string,
+  onCompare: (fa: FolderFile, fb: FolderFile, nA: string, nB: string) => void,
+): void {
+  container.innerHTML = '';
+
+  const matched = entries.filter((e) => e.fileA && e.fileB);
+  const onlyA = entries.filter((e) => e.fileA && !e.fileB);
+  const onlyB = entries.filter((e) => !e.fileA && e.fileB);
+
+  // Stats bar
+  const statsBar = document.createElement('div');
+  statsBar.className = 'stats-bar';
+  statsBar.innerHTML = `
+    <span class="stat stat-total">Total: <b>${entries.length}</b></span>
+    <span class="stat tag-same">✓ Matched: <b>${matched.length}</b></span>
+    <span class="stat tag-only-a">◀ Only in A: <b>${onlyA.length}</b></span>
+    <span class="stat tag-only-b">▶ Only in B: <b>${onlyB.length}</b></span>
+  `;
+  container.appendChild(statsBar);
+
+  // Column headers
+  const list = document.createElement('div');
+  list.className = 'entries-list folder-entries-list';
+
+  const colHeader = document.createElement('div');
+  colHeader.className = 'entry-row folder-pair-row col-headers-row';
+  colHeader.innerHTML = `
+    <div class="col-cell col-a-cell col-header-cell">
+      <span class="col-header-label label-a">${escHtml(nameA)}</span>
+    </div>
+    <div class="col-status folder-compare-col"></div>
+    <div class="col-cell col-b-cell col-header-cell">
+      <span class="col-header-label label-b">${escHtml(nameB)}</span>
+    </div>
+  `;
+  list.appendChild(colHeader);
+
+  function appendGroup(groupEntries: FolderEntry[], label: string): void {
+    if (groupEntries.length === 0) return;
+    const header = document.createElement('div');
+    header.className = 'folder-group-header';
+    header.textContent = label;
+    list.appendChild(header);
+    groupEntries.forEach((e) => list.appendChild(buildFolderEntryRow(e, nameA, nameB, onCompare)));
+  }
+
+  appendGroup(matched, `Matched (${matched.length})`);
+  appendGroup(onlyA, `Only in A (${onlyA.length})`);
+  appendGroup(onlyB, `Only in B (${onlyB.length})`);
+
+  container.appendChild(list);
 }

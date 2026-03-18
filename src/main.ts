@@ -1,7 +1,7 @@
 import './style.css';
-import type { SpineSkeleton, LoadedFile } from './types';
+import type { SpineSkeleton, LoadedFile, FolderFile, FolderEntry } from './types';
 import { compare } from './comparator';
-import { showResult } from './ui';
+import { showResult, showFolderResult } from './ui';
 
 // ─── App shell ───────────────────────────────────────────────────────────────
 
@@ -16,6 +16,11 @@ app.innerHTML = `
   </header>
 
   <main class="app-main">
+    <div class="mode-toggle-row">
+      <button class="mode-btn active" id="mode-single">Single File</button>
+      <button class="mode-btn" id="mode-folder">Folder</button>
+    </div>
+
     <section class="upload-section">
       <div class="upload-grid">
         <div class="drop-zone" id="drop-a">
@@ -40,6 +45,38 @@ app.innerHTML = `
       </div>
     </section>
 
+    <section class="folder-section hidden">
+      <div class="upload-grid">
+        <div class="drop-zone folder-drop-zone" id="folder-drop-a">
+          <div class="drop-icon">📁</div>
+          <div class="drop-label">Folder <span class="label-a">A</span></div>
+          <div class="drop-hint">Drop a folder here or click to browse</div>
+          <input type="file" id="folder-input-a" webkitdirectory hidden />
+          <div class="file-name" id="folder-name-a">No folder loaded</div>
+        </div>
+        <div class="vs-divider">VS</div>
+        <div class="drop-zone folder-drop-zone" id="folder-drop-b">
+          <div class="drop-icon">📁</div>
+          <div class="drop-label">Folder <span class="label-b">B</span></div>
+          <div class="drop-hint">Drop a folder here or click to browse</div>
+          <input type="file" id="folder-input-b" webkitdirectory hidden />
+          <div class="file-name" id="folder-name-b">No folder loaded</div>
+        </div>
+      </div>
+      <div class="compare-btn-row">
+        <button class="compare-btn" id="folder-compare-btn" disabled>Compare Folders</button>
+        <span class="compare-hint" id="folder-compare-hint">Load both folders to compare</span>
+      </div>
+    </section>
+
+    <section class="folder-results-section hidden">
+      <div class="compare-header">
+        <span class="compare-title" id="folder-results-title"></span>
+        <button class="reset-btn" id="folder-reset-btn">↩ Load new folders</button>
+      </div>
+      <div id="folder-entries"></div>
+    </section>
+
     <section class="compare-section hidden">
       <div class="compare-header">
         <span class="compare-title" id="compare-title"></span>
@@ -55,6 +92,12 @@ app.innerHTML = `
 
 let fileA: LoadedFile | null = null;
 let fileB: LoadedFile | null = null;
+
+let folderFilesA: FolderFile[] = [];
+let folderFilesB: FolderFile[] = [];
+let folderNameA = '';
+let folderNameB = '';
+let currentMode: 'single' | 'folder' = 'single';
 
 // ─── File loading ─────────────────────────────────────────────────────────────
 
@@ -175,6 +218,248 @@ async function handleFile(
   }
 }
 
+// ─── Folder scanning ──────────────────────────────────────────────────────────
+
+function scanFolderInput(input: HTMLInputElement): FolderFile[] {
+  const files: FolderFile[] = [];
+  const allFiles = input.files;
+  if (!allFiles) return files;
+  for (let i = 0; i < allFiles.length; i++) {
+    const f = allFiles[i];
+    const rel = f.webkitRelativePath;
+    // strip the top-level folder name: "folderName/path/to/file.json" -> "path/to/file.json"
+    const name = rel.split('/').slice(1).join('/');
+    if (name.toLowerCase().endsWith('.json')) {
+      files.push({ name, file: f });
+    }
+  }
+  return files;
+}
+
+function readAllEntries(reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> {
+  return new Promise((resolve) => {
+    const all: FileSystemEntry[] = [];
+    function batch(): void {
+      reader.readEntries((entries) => {
+        if (entries.length === 0) {
+          resolve(all);
+        } else {
+          all.push(...entries);
+          batch();
+        }
+      });
+    }
+    batch();
+  });
+}
+
+async function walkEntry(entry: FileSystemEntry, path: string): Promise<FolderFile[]> {
+  const results: FolderFile[] = [];
+  if (entry.isFile) {
+    const fileEntry = entry as FileSystemFileEntry;
+    if (entry.name.toLowerCase().endsWith('.json')) {
+      const file = await new Promise<File>((resolve, reject) => fileEntry.file(resolve, reject));
+      results.push({ name: path + entry.name, file });
+    }
+  } else if (entry.isDirectory) {
+    const dirEntry = entry as FileSystemDirectoryEntry;
+    const reader = dirEntry.createReader();
+    const children = await readAllEntries(reader);
+    for (const child of children) {
+      const sub = await walkEntry(child, path + entry.name + '/');
+      results.push(...sub);
+    }
+  }
+  return results;
+}
+
+async function scanFolderDrop(dataTransfer: DataTransfer): Promise<FolderFile[]> {
+  const results: FolderFile[] = [];
+  const items = dataTransfer.items;
+  for (let i = 0; i < items.length; i++) {
+    const entry = items[i].webkitGetAsEntry();
+    if (!entry) continue;
+    if (entry.isDirectory) {
+      const dirEntry = entry as FileSystemDirectoryEntry;
+      const reader = dirEntry.createReader();
+      const children = await readAllEntries(reader);
+      for (const child of children) {
+        const sub = await walkEntry(child, '');
+        results.push(...sub);
+      }
+    } else if (entry.isFile && entry.name.toLowerCase().endsWith('.json')) {
+      const fileEntry = entry as FileSystemFileEntry;
+      const file = await new Promise<File>((resolve, reject) => fileEntry.file(resolve, reject));
+      results.push({ name: entry.name, file });
+    }
+  }
+  return results;
+}
+
+function buildFolderEntries(a: FolderFile[], b: FolderFile[]): FolderEntry[] {
+  const map = new Map<string, FolderEntry>();
+  for (const f of a) {
+    map.set(f.name, { name: f.name, fileA: f, fileB: null });
+  }
+  for (const f of b) {
+    const existing = map.get(f.name);
+    if (existing) {
+      existing.fileB = f;
+    } else {
+      map.set(f.name, { name: f.name, fileA: null, fileB: f });
+    }
+  }
+  const entries = Array.from(map.values());
+  // Sort: matched first, then only-A, then only-B
+  entries.sort((x, y) => {
+    const rankX = x.fileA && x.fileB ? 0 : x.fileA ? 1 : 2;
+    const rankY = y.fileA && y.fileB ? 0 : y.fileA ? 1 : 2;
+    if (rankX !== rankY) return rankX - rankY;
+    return x.name.localeCompare(y.name);
+  });
+  return entries;
+}
+
+function setFolderDropSuccess(zone: HTMLElement, nameElId: string, folderName: string, count: number): void {
+  zone.classList.add('loaded');
+  zone.querySelector<HTMLElement>('.drop-icon')!.textContent = '✅';
+  const nameEl = zone.querySelector<HTMLElement>('.file-name')!;
+  nameEl.textContent = `${folderName} (${count} .json files)`;
+  document.getElementById(nameElId)!.textContent = folderName;
+}
+
+function setFolderDropError(zone: HTMLElement, message: string): void {
+  zone.classList.add('error');
+  zone.querySelector<HTMLElement>('.drop-icon')!.textContent = '❌';
+  zone.querySelector<HTMLElement>('.file-name')!.textContent = message;
+  setTimeout(() => {
+    zone.classList.remove('error');
+    zone.querySelector<HTMLElement>('.drop-icon')!.textContent = '📁';
+    zone.querySelector<HTMLElement>('.file-name')!.textContent = 'No folder loaded';
+  }, 2500);
+}
+
+function wireFolderDropZone(
+  zoneId: string,
+  inputId: string,
+  nameElId: string,
+  onLoaded: (files: FolderFile[], name: string) => void,
+): void {
+  const zone = document.getElementById(zoneId)!;
+  const input = document.getElementById(inputId) as HTMLInputElement;
+
+  zone.addEventListener('click', () => input.click());
+
+  zone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    zone.classList.add('drag-over');
+  });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    if (!e.dataTransfer) return;
+
+    // Determine folder name from the first directory item
+    let name = 'Folder';
+    const items = e.dataTransfer.items;
+    for (let i = 0; i < items.length; i++) {
+      const entry = items[i].webkitGetAsEntry();
+      if (entry?.isDirectory) { name = entry.name; break; }
+    }
+
+    try {
+      const files = await scanFolderDrop(e.dataTransfer);
+      if (files.length === 0) {
+        setFolderDropError(zone, 'No .json files found in dropped folder.');
+        return;
+      }
+      setFolderDropSuccess(zone, nameElId, name, files.length);
+      onLoaded(files, name);
+    } catch {
+      setFolderDropError(zone, 'Failed to read folder.');
+    }
+  });
+
+  input.addEventListener('change', () => {
+    if (!input.files || input.files.length === 0) return;
+    // Derive folder name from webkitRelativePath of first file
+    const firstPath = input.files[0].webkitRelativePath;
+    const name = firstPath ? firstPath.split('/')[0] : 'Folder';
+    const files = scanFolderInput(input);
+    if (files.length === 0) {
+      setFolderDropError(zone, 'No .json files found in selected folder.');
+      return;
+    }
+    setFolderDropSuccess(zone, nameElId, name, files.length);
+    onLoaded(files, name);
+  });
+}
+
+function updateFolderCompareButton(): void {
+  const btn = document.getElementById('folder-compare-btn') as HTMLButtonElement;
+  const hint = document.getElementById('folder-compare-hint')!;
+  if (folderFilesA.length > 0 && folderFilesB.length > 0) {
+    btn.disabled = false;
+    hint.textContent = `Ready: ${folderNameA} vs ${folderNameB}`;
+  } else if (folderFilesA.length === 0 && folderFilesB.length === 0) {
+    btn.disabled = true;
+    hint.textContent = 'Load both folders to compare';
+  } else {
+    btn.disabled = true;
+    hint.textContent = folderFilesA.length > 0 ? 'Now load Folder B' : 'Now load Folder A';
+  }
+}
+
+function triggerFolderCompare(): void {
+  if (folderFilesA.length === 0 || folderFilesB.length === 0) return;
+  const entries = buildFolderEntries(folderFilesA, folderFilesB);
+
+  // Update title
+  const title = document.getElementById('folder-results-title')!;
+  title.innerHTML = `<span class="label-a">${escHtml(folderNameA)}</span> vs <span class="label-b">${escHtml(folderNameB)}</span>`;
+
+  // Show folder results section
+  app.querySelector('.folder-results-section')!.classList.remove('hidden');
+
+  const onCompare = async (fa: FolderFile, fb: FolderFile, nA: string, nB: string) => {
+    const [a, b] = await Promise.all([loadFile(fa.file), loadFile(fb.file)]);
+    const result = compare(a.skeleton, b.skeleton);
+    const compareTitle = document.getElementById('compare-title')!;
+    const verA = a.skeleton.skeleton?.spine ? ` <span class="version-badge">${escHtml(a.skeleton.skeleton.spine)}</span>` : '';
+    const verB = b.skeleton.skeleton?.spine ? ` <span class="version-badge">${escHtml(b.skeleton.skeleton.spine)}</span>` : '';
+    compareTitle.innerHTML = `<span class="label-a">${escHtml(nA)}</span>${verA} vs <span class="label-b">${escHtml(nB)}</span>${verB}`;
+    showResult(app, result, nA, nB);
+    app.querySelector('.folder-results-section')!.classList.add('hidden');
+    app.querySelector('.compare-section')!.classList.remove('hidden');
+  };
+
+  showFolderResult(
+    document.getElementById('folder-entries')!,
+    entries,
+    folderNameA,
+    folderNameB,
+    onCompare,
+  );
+}
+
+// ─── Mode toggle ──────────────────────────────────────────────────────────────
+
+function switchMode(mode: 'single' | 'folder'): void {
+  currentMode = mode;
+
+  document.getElementById('mode-single')!.classList.toggle('active', mode === 'single');
+  document.getElementById('mode-folder')!.classList.toggle('active', mode === 'folder');
+
+  app.querySelector('.upload-section')!.classList.toggle('hidden', mode === 'folder');
+  app.querySelector('.folder-section')!.classList.toggle('hidden', mode === 'single');
+  app.querySelector('.compare-section')!.classList.add('hidden');
+  app.querySelector('.folder-results-section')!.classList.add('hidden');
+}
+
+document.getElementById('mode-single')!.addEventListener('click', () => switchMode('single'));
+document.getElementById('mode-folder')!.addEventListener('click', () => switchMode('folder'));
+
 // ─── Wire drop zones ─────────────────────────────────────────────────────────
 
 wireDropZone('drop-a', 'file-a', 'name-a', (f) => {
@@ -182,6 +467,24 @@ wireDropZone('drop-a', 'file-a', 'name-a', (f) => {
 });
 wireDropZone('drop-b', 'file-b', 'name-b', (f) => {
   fileB = f;
+});
+
+wireFolderDropZone('folder-drop-a', 'folder-input-a', 'folder-name-a', (files, name) => {
+  folderFilesA = files;
+  folderNameA = name;
+  updateFolderCompareButton();
+  if (folderFilesB.length > 0) triggerFolderCompare();
+});
+
+wireFolderDropZone('folder-drop-b', 'folder-input-b', 'folder-name-b', (files, name) => {
+  folderFilesB = files;
+  folderNameB = name;
+  updateFolderCompareButton();
+  if (folderFilesA.length > 0) triggerFolderCompare();
+});
+
+document.getElementById('folder-compare-btn')!.addEventListener('click', () => {
+  if (folderFilesA.length > 0 && folderFilesB.length > 0) triggerFolderCompare();
 });
 
 // ─── Compare button ───────────────────────────────────────────────────────────
@@ -196,9 +499,16 @@ document.getElementById('compare-btn')!.addEventListener('click', () => {
   showResult(app, result, fileA.name, fileB.name);
 });
 
-// ─── Reset button ─────────────────────────────────────────────────────────────
+// ─── Reset buttons ─────────────────────────────────────────────────────────────
 
 document.getElementById('reset-btn')!.addEventListener('click', () => {
+  if (currentMode === 'folder') {
+    // In folder mode: return to folder results view
+    app.querySelector('.compare-section')!.classList.add('hidden');
+    app.querySelector('.folder-results-section')!.classList.remove('hidden');
+    return;
+  }
+
   fileA = null;
   fileB = null;
 
@@ -215,6 +525,24 @@ document.getElementById('reset-btn')!.addEventListener('click', () => {
   app.querySelector('.upload-section')?.classList.remove('compact');
   app.querySelector('.compare-section')!.classList.add('hidden');
   updateCompareButton();
+});
+
+document.getElementById('folder-reset-btn')!.addEventListener('click', () => {
+  folderFilesA = [];
+  folderFilesB = [];
+  folderNameA = '';
+  folderNameB = '';
+
+  ['folder-drop-a', 'folder-drop-b'].forEach((id) => {
+    const zone = document.getElementById(id)!;
+    zone.classList.remove('loaded', 'error', 'drag-over');
+    zone.querySelector<HTMLElement>('.drop-icon')!.textContent = '📁';
+    zone.querySelector<HTMLElement>('.file-name')!.textContent = 'No folder loaded';
+  });
+
+  app.querySelector('.folder-results-section')!.classList.add('hidden');
+  document.getElementById('folder-entries')!.innerHTML = '';
+  updateFolderCompareButton();
 });
 
 function escHtml(str: string): string {

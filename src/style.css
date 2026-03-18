@@ -378,6 +378,82 @@ h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.5px; color: var(--t
   grid-column: 1 / -1;
 }
 
+/* ─── Mode toggle ───────────────────────────────────────────────────────────── */
+.mode-toggle-row {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  width: fit-content;
+}
+
+.mode-btn {
+  background: var(--surface);
+  border: none;
+  color: var(--text-muted);
+  padding: 8px 22px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.mode-btn:not(:last-child) { border-right: 1px solid var(--border); }
+.mode-btn:hover { color: var(--text); background: var(--surface2); }
+.mode-btn.active {
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ─── Folder section ─────────────────────────────────────────────────────────── */
+.upload-section.hidden,
+.folder-section.hidden,
+.folder-results-section.hidden { display: none; }
+
+/* ─── Folder results ─────────────────────────────────────────────────────────── */
+.folder-entries-list { max-height: 70vh; }
+
+.folder-group-header {
+  padding: 6px 14px;
+  background: var(--surface2);
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  border-radius: var(--radius-sm);
+  margin: 8px 0 3px;
+  flex-shrink: 0;
+}
+
+.entry-row.folder-pair-row {
+  grid-template-columns: 1fr 100px 1fr;
+}
+
+.folder-compare-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface2);
+  flex-shrink: 0;
+}
+
+.folder-compare-btn {
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity .15s, transform .1s;
+}
+.folder-compare-btn:hover { opacity: .85; transform: scale(1.03); }
+
 /* ─── Responsive ─────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .upload-grid { grid-template-columns: 1fr; }
